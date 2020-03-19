@@ -10,6 +10,7 @@ import sys
 import time
 import json
 import signal
+import copy
 
 BUFFER_SIZE = 200000
 clients = []
@@ -62,7 +63,9 @@ class Client:
         self.file_path = None
         self.choice = None
         self.unregistered = 0
-        self.prev_stats = {}
+        self.prev_ports_stats = {}
+        self.prev_global_stats = {}
+        self.ports_stats = {}
 
     def __del__(self):
         try:
@@ -112,34 +115,42 @@ class Client:
             port = port_data["port"]
             for stat in port_data["stats"]:
                 if stat["name"] in ports_desired_stats:
-                    self.prev_stats[str(stat["name"]) + "-port" + str(port)] = stat["value"]
+                    self.prev_ports_stats[str(stat["name"]) + "-port" + str(port)] = stat["value"]
 
         global_data = json.loads(self.requestGlobalMetrics())
         for stat in global_data["data"][0]["stats"]:
             if stat["name"] in global_desired_stats:
-                self.prev_stats[str(stat["name"])] = stat["value"]
+                self.prev_global_stats[str(stat["name"])] = stat["value"]
 
-    def getMetrics(self):
-        stats = {"timestamp": time.time()}
-        ports_data = json.loads(self.requestMetrics())
-        for port_data in ports_data["data"]:
-            port = port_data["port"]
-            for stat in port_data["stats"]:
-                if stat["name"] in ports_desired_stats:
-                    metric = str(stat["name"]) + "-port" + str(port)
-                    stats[metric] = stat["value"] - self.prev_stats[metric]
-                    self.prev_stats[metric] = stat["value"]
+    def getMetrics(self, flagPortsMetrics):
+        timestamp = time.time()
+        ports_stats = {}
+        global_stats = {}
+
+        if flagPortsMetrics:
+            ports_data = json.loads(self.requestMetrics())
+            for port_data in ports_data["data"]:
+                port = port_data["port"]
+                for stat in port_data["stats"]:
+                    if stat["name"] in ports_desired_stats:
+                        metric = str(stat["name"]) + "-port" + str(port)
+                        self.ports_stats[metric] = stat["value"] - self.prev_ports_stats[metric]
+                        self.prev_ports_stats[metric] = stat["value"]
+
 
         global_data = json.loads(self.requestGlobalMetrics())
         for stat in global_data["data"][0]["stats"]:
             if stat["name"] in global_desired_stats:
                 metric = str(stat["name"])
-                stats[metric] = stat["value"] - self.prev_stats[metric]
-                self.prev_stats[metric] = stat["value"]
+                global_stats[metric] = stat["value"] - self.prev_global_stats[metric]
+                self.prev_global_stats[metric] = stat["value"]
+
+        global_stats.update(self.ports_stats)
+        global_stats["timestamp"] = timestamp
 
         try:
             f = open("tmp-" + self.prefix + ".json", 'w')
-            f.write("stats:>" + str(stats) + "\n")
+            f.write("stats:>" + str(global_stats) + "\n")
         finally:
             f.close()
 
@@ -151,6 +162,8 @@ def signal_handler(sig, frame):
 if __name__ == "__main__":
 
     num_instances = 2
+    print("Running for", str(num_instances), "vnf instances")
+
     file_path = ""
     if (len(sys.argv) == 2):
         file_path = sys.argv[1]
@@ -167,10 +180,23 @@ if __name__ == "__main__":
         client.register()
         client.initMetrics()
         clients.append(client)
+        time.sleep(7)
 
+    iterations = 0
+    flagPortsMetrics = True
+    # Ports stats per 10sec, Global stats per 2sec
     while 1:
         for client in clients:
-            client.getMetrics()
+            if flagPortsMetrics:
+                client.getMetrics(True)
+            else:
+                client.getMetrics(False)
             os.rename("tmp-" + client.prefix + ".json", 'telemetry_stats' + client.prefix + '.json')
 
-        time.sleep(5)
+        time.sleep(2)
+        iterations += 1
+        if iterations == 5:
+            iterations = 0
+            flagPortsMetrics = True
+        else:
+            flagPortsMetrics = False
