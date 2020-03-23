@@ -3,33 +3,21 @@ import os
 import sys
 import ast
 import json
+import requests
 
 app = flask.Flask(__name__)
+ip_traffic = ""
 
-
-@app.route('/dpdk_stats_l1')
-def get_dpdk_stats_l1():
-    """ Retrieves the last saved dpdk stats for app with prefix l1
+@app.route('/stats/<prefix>')
+def get_stats(prefix):
+    """ Retrieves the last saved stats for the dpdk app with prefix l1
         Args:
             -
         Returns:
-            dict: A JSON object containing the dpdk stats
+            dict: A JSON object containing the stats
     """
     status = 200
-    return flask.Response(get_stats_json("l1"),
-                          status=status,
-                          mimetype='application/json')
-
-@app.route('/dpdk_stats_l2')
-def get_dpdk_stats_l2():
-    """ Retrieves the last saved dpdk stats for app with prefix l2
-        Args:
-            -
-        Returns:
-            dict: A JSON object containing the dpdk stats
-    """
-    status = 200
-    return flask.Response(get_stats_json("l2"),
+    return flask.Response(get_stats_json(prefix),
                           status=status,
                           mimetype='application/json')
 
@@ -43,7 +31,15 @@ def get_stats_json(prefix):
                 break
             line = f.readline()
         stats_dict = ast.literal_eval(str_dict)
+
+        r = requests.get("http://" + ip_traffic + ":5001/tx_stats")
+        traffic_stats_dict = r.json()
+        metric = "tx_bps-pgid_" + prefix.split('l')[1]
+        if metric in traffic_stats_dict:
+            stats_dict["rx_bps"] = traffic_stats_dict[metric]
+
         js = json.dumps(stats_dict, indent=2)
+
         return js
 
     except Exception as e:
@@ -55,5 +51,10 @@ def get_stats_json(prefix):
 
 
 if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print("Wrong arguments! Please give the ip to get traffic bps per stream")
+        exit(0)
+
+    ip_traffic = sys.argv[1]
     app.run(host='0.0.0.0', port=5000, debug=True)
 
