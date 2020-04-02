@@ -34,9 +34,13 @@ def get_stats_json(prefix):
 
         r = requests.get("http://" + ip_traffic + ":5001/tx_stats")
         traffic_stats_dict = r.json()
-        metric = "tx_bps-pgid_" + prefix.split('l')[1]
+        pgid = prefix.split('l')[1]
+        metric = "tx_bps-pgid_" + pgid
         if metric in traffic_stats_dict:
             stats_dict["rx_bps"] = traffic_stats_dict[metric]
+        metric = "dropped_packets-pgid_" + pgid
+        if metric in traffic_stats_dict:
+            stats_dict["dropped_packets"] = traffic_stats_dict[metric]
 
         js = json.dumps(stats_dict, indent=2)
 

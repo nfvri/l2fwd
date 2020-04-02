@@ -27,6 +27,12 @@ ports_desired_stats = {
     "tx_good_packets": True,
     "rx_good_bytes": True,
     "tx_good_bytes": True,
+    "rx_unicast_packets": True,
+    "tx_unicast_packets": True,
+    "rx_multicast_packets": True,
+    "tx_multicast_packets": True,
+    "rx_broadcast_packets": True,
+    "tx_broadcast_packets": True
 }
 
 global_desired_stats = {
@@ -161,15 +167,19 @@ def signal_handler(sig, frame):
 
 if __name__ == "__main__":
 
-    num_instances = 2
-    print("Running for", str(num_instances), "vnf instances")
-
+    num_instances = 1
     file_path = ""
-    if (len(sys.argv) == 2):
-        file_path = sys.argv[1]
+
+    if (len(sys.argv) == 3):
+        num_instances = int(sys.argv[1])
+        file_path = sys.argv[2]
     else:
         print("Warning - No filepath passed, using defaults (" + DEFAULT_FP + " plus num of intance).")
         file_path = DEFAULT_FP
+        if (len(sys.argv) == 2):
+            num_instances = int(sys.argv[1])
+
+    print("Running for", str(num_instances), "vnf instances")
 
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -180,7 +190,7 @@ if __name__ == "__main__":
         client.register()
         client.initMetrics()
         clients.append(client)
-        time.sleep(7)
+        time.sleep(2)
 
     iterations = 0
     flagPortsMetrics = True
