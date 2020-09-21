@@ -778,8 +778,8 @@ main(int argc, char **argv)
 		l2fwd_dst_ports[last_port] = last_port;
 	}
 
-	// rx_lcore_id = rte_get_master_lcore() + 1;
-	rx_lcore_id = 0;
+	rx_lcore_id = rte_get_master_lcore() + 1;
+	//rx_lcore_id = 0;
 	qconf = NULL;
 
 	/* Initialize the port/queue configuration of each logical core */
